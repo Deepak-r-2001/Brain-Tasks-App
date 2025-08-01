@@ -4,18 +4,58 @@ phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
+      - aws --version
+      - $(aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com)
+      - REPOSITORY_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
+      - IMAGE_TAG=latest
+      - echo Building image $REPOSITORY_URI:$IMAGE_TAG
+
   build:
     commands:
-      - echo Building the Docker image...
-      - docker build -t brain-tasks-app .
-      - docker tag brain-tasks-app:latest 288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app:latest
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+
   post_build:
     commands:
-      - echo Pushing the Docker image...
-      - docker push 288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app:latest
-      - echo Applying Kubernetes manifests...
-      - aws eks update-kubeconfig --region ap-south-1 --name brain-tasks-cluster
-      - kubectl apply -f k8s/deployment.yaml
-      - kubectl apply -f k8s/service.yaml
-      - echo Build and deployment complete!
+      - echo Pushing the Docker image to ECR...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+
+      # Set up kubeconfig manually using env vars from CodeBuild
+      - echo Setting up kubeconfig for EKS...
+      - mkdir -p ~/.kube
+      - |
+        cat <<EOF > ~/.kube/config
+        apiVersion: v1
+        clusters:
+        - cluster:
+            server: ${EKS_CLUSTER_ENDPOINT}
+            certificate-authority-data: ${EKS_CLUSTER_CA}
+          name: ${EKS_CLUSTER_NAME}
+        contexts:
+        - context:
+            cluster: ${EKS_CLUSTER_NAME}
+            user: aws
+          name: ${EKS_CLUSTER_NAME}
+        current-context: ${EKS_CLUSTER_NAME}
+        kind: Config
+        preferences: {}
+        users:
+        - name: aws
+          user:
+            exec:
+              apiVersion: client.authentication.k8s.io/v1beta1
+              command: aws
+              args:
+                - "eks"
+                - "get-token"
+                - "--region"
+                - "ap-south-1"
+                - "--cluster-name"
+                - "${EKS_CLUSTER_NAME}"
+        EOF
+
+      # Apply Kubernetes manifests
+      - echo Deploying to EKS...
+      - kubectl apply -f k8s/
+artifacts:
+  files:
+    - '**/*'
