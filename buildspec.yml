@@ -21,7 +21,7 @@ phases:
 
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
-      - |
+      - >
         cat <<EOF > ~/.kube/config
         apiVersion: v1
         clusters:
