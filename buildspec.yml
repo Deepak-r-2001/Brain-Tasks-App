@@ -52,14 +52,18 @@ phases:
                 - "${EKS_CLUSTER_NAME}"
         EOF
 
-      - echo Verifying k8s folder exists...
-      - ls -la
+      - echo Verifying manifest directory contents...
       - ls -la k8s/
-      - cat k8s/*.yaml
+      - echo Showing k8s/deployment.yaml:
+      - cat k8s/deployment.yaml
+      - echo Showing k8s/service.yaml:
+      - cat k8s/service.yaml
 
-      - echo Deploying to EKS...
-      - kubectl apply -f k8s/
+      - echo Applying manifests to EKS...
+      - kubectl apply -f k8s/deployment.yaml
+      - kubectl apply -f k8s/service.yaml
 
 artifacts:
   files:
     - '**/*'
+
