@@ -1,21 +1,31 @@
 version: 0.2
 
 phases:
-  pre_build:
+  install:
+    runtime-versions:
+      docker: 20
+      nodejs: 18
     commands:
       - echo Logging in to Amazon ECR...
       - aws --version
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
-      - REPOSITORY_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
-      - IMAGE_TAG=latest
+      - $(aws ecr get-login --no-include-email --region ap-south-1)
+
+  pre_build:
+    commands:
+      - echo Installing dependencies...
+      - npm install
+
   build:
     commands:
       - echo Building Docker image...
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
+
   post_build:
     commands:
       - echo Pushing Docker image to ECR...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
 
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
@@ -52,7 +62,3 @@ phases:
 
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
-
-artifacts:
-  files:
-    - '**/*'
