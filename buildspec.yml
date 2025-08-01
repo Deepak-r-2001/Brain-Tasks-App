@@ -19,7 +19,6 @@ phases:
       - echo Pushing the Docker image to ECR...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
 
-      # Set up kubeconfig manually using env vars from CodeBuild
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
       - |
@@ -53,9 +52,14 @@ phases:
                 - "${EKS_CLUSTER_NAME}"
         EOF
 
-      # Apply Kubernetes manifests
+      - echo Verifying k8s folder exists...
+      - ls -la
+      - ls -la k8s/
+      - cat k8s/*.yaml
+
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
+
 artifacts:
   files:
     - '**/*'
