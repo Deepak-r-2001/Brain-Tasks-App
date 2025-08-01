@@ -5,21 +5,18 @@ phases:
     commands:
       - echo Logging in to Amazon ECR...
       - aws --version
-      - $(aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com)
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
       - REPOSITORY_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
       - IMAGE_TAG=latest
-      - echo Building image $REPOSITORY_URI:$IMAGE_TAG
-
   build:
     commands:
+      - echo Building Docker image...
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-
   post_build:
     commands:
-      - echo Pushing the Docker image to ECR...
+      - echo Pushing Docker image to ECR...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
 
-      # Set up kubeconfig manually
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
       - |
@@ -53,10 +50,8 @@ phases:
                 - "${EKS_CLUSTER_NAME}"
         EOF
 
-      # Deploy to Kubernetes
       - echo Deploying to EKS...
-      - kubectl apply -f k8s/deployment.yaml
-      - kubectl apply -f k8s/service.yaml
+      - kubectl apply -f k8s/
 
 artifacts:
   files:
