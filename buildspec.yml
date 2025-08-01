@@ -18,12 +18,10 @@ phases:
     commands:
       - echo Pushing the Docker image to ECR...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
-
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
-      - >
-        cat <<EOF > ~/.kube/config
-        apiVersion: v1
+      - |
+        echo "apiVersion: v1
         clusters:
         - cluster:
             server: ${EKS_CLUSTER_ENDPOINT}
@@ -44,26 +42,18 @@ phases:
               apiVersion: client.authentication.k8s.io/v1beta1
               command: aws
               args:
-                - "eks"
-                - "get-token"
-                - "--region"
-                - "ap-south-1"
-                - "--cluster-name"
-                - "${EKS_CLUSTER_NAME}"
-        EOF
-
-      - echo Verifying manifest directory contents...
+                - eks
+                - get-token
+                - --region
+                - ap-south-1
+                - --cluster-name
+                - ${EKS_CLUSTER_NAME}" > ~/.kube/config
+      - echo Verifying manifest files...
       - ls -la k8s/
-      - echo Showing k8s/deployment.yaml:
-      - cat k8s/deployment.yaml
-      - echo Showing k8s/service.yaml:
-      - cat k8s/service.yaml
-
-      - echo Applying manifests to EKS...
+      - echo Deploying to EKS...
       - kubectl apply -f k8s/deployment.yaml
       - kubectl apply -f k8s/service.yaml
 
 artifacts:
   files:
     - '**/*'
-
