@@ -1,9 +1,14 @@
 version: 0.2
 
+env:
+  variables:
+    IMAGE_TAG: latest
+
 phases:
   install:
     runtime-versions:
       nodejs: 18
+      docker: 20
     commands:
       - echo Logging in to Amazon ECR...
       - aws --version
@@ -28,36 +33,10 @@ phases:
 
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
-      - |
-        cat <<EOF > ~/.kube/config
-        apiVersion: v1
-        clusters:
-        - cluster:
-            server: ${EKS_CLUSTER_ENDPOINT}
-            certificate-authority-data: ${EKS_CLUSTER_CA}
-          name: ${EKS_CLUSTER_NAME}
-        contexts:
-        - context:
-            cluster: ${EKS_CLUSTER_NAME}
-            user: aws
-          name: ${EKS_CLUSTER_NAME}
-        current-context: ${EKS_CLUSTER_NAME}
-        kind: Config
-        preferences: {}
-        users:
-        - name: aws
-          user:
-            exec:
-              apiVersion: client.authentication.k8s.io/v1beta1
-              command: aws
-              args:
-                - "eks"
-                - "get-token"
-                - "--region"
-                - "ap-south-1"
-                - "--cluster-name"
-                - "${EKS_CLUSTER_NAME}"
-        EOF
+      - echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
 
-      - echo Deploying to EKS...
+      - echo Testing connection to EKS cluster...
+      - kubectl get nodes
+
+      - echo Applying Kubernetes manifests...
       - kubectl apply -f k8s/
