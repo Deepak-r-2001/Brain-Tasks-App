@@ -35,7 +35,6 @@ phases:
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
 
-      # DEBUG LOGGING (optional)
       - echo "Cluster Name: $EKS_CLUSTER_NAME"
       - echo "Cluster Endpoint: $EKS_CLUSTER_ENDPOINT"
       - echo "Cluster CA length: ${#EKS_CLUSTER_CA}"
