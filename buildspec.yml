@@ -1,18 +1,34 @@
 version: 0.2
 
+env:
+  variables:
+    IMAGE_TAG: "latest"
+  secrets-manager:
+    KUBECONFIG_DATA: "brain-tasks/kubeconfig:KUBECONFIG_DATA"
+
 phases:
   install:
     runtime-versions:
-      nodejs: 18
+      docker: 20
     commands:
-      - echo Logging in to Amazon ECR...
-      - aws --version
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
+      - echo Installing AWS CLI and kubectl...
+      - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      - unzip -q awscliv2.zip
+      - ./aws/install
+      - curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x kubectl
+      - mv kubectl /usr/local/bin/
+      - echo AWS CLI and kubectl installed.
 
   pre_build:
     commands:
-      - echo Installing dependencies...
-      - npm install
+      - echo Logging into Amazon ECR...
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
+      - REPOSITORY_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
+      - echo REPOSITORY_URI=$REPOSITORY_URI
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=$COMMIT_HASH
+      - echo IMAGE_TAG=$IMAGE_TAG
 
   build:
     commands:
@@ -26,45 +42,15 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
 
-      - echo Setting up kubeconfig for EKS...
+      - echo Setting up kubeconfig...
       - mkdir -p ~/.kube
-      - |
-        cat <<EOF > ~/.kube/config
-        apiVersion: v1
-        clusters:
-        - cluster:
-            server: ${EKS_CLUSTER_ENDPOINT}
-            certificate-authority-data: ${EKS_CLUSTER_CA}
-          name: ${EKS_CLUSTER_NAME}
-        contexts:
-        - context:
-            cluster: ${EKS_CLUSTER_NAME}
-            user: aws
-          name: ${EKS_CLUSTER_NAME}
-        current-context: ${EKS_CLUSTER_NAME}
-        kind: Config
-        preferences: {}
-        users:
-        - name: aws
-          user:
-            exec:
-              apiVersion: client.authentication.k8s.io/v1beta1
-              command: aws
-              args:
-                - "eks"
-                - "get-token"
-                - "--region"
-                - "ap-south-1"
-                - "--cluster-name"
-                - "${EKS_CLUSTER_NAME}"
-        EOF
+      - echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
+
+      - echo Listing files in k8s/ to debug...
+      - ls -R k8s/
 
       - echo Validating Kubernetes manifests...
       - kubectl apply --dry-run=client -f k8s/
 
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
-
-artifacts:
-  files:
-    - '**/*'
