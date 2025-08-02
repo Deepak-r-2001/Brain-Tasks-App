@@ -9,6 +9,12 @@ phases:
       - aws --version
       - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
 
+      - echo Installing kubectl...
+      - curl -o kubectl https://s3.amazonaws.com/aws-cli/kubectl/kubectl-linux
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - kubectl version --client
+
   pre_build:
     commands:
       - echo Installing dependencies...
@@ -28,6 +34,12 @@ phases:
 
       - echo Setting up kubeconfig for EKS...
       - mkdir -p ~/.kube
+
+      # DEBUG LOGGING (optional)
+      - echo "Cluster Name: $EKS_CLUSTER_NAME"
+      - echo "Cluster Endpoint: $EKS_CLUSTER_ENDPOINT"
+      - echo "Cluster CA length: ${#EKS_CLUSTER_CA}"
+
       - |
         cat <<EOF > ~/.kube/config
         apiVersion: v1
@@ -59,5 +71,12 @@ phases:
                 - "${EKS_CLUSTER_NAME}"
         EOF
 
+      - echo Validating Kubernetes manifests...
+      - kubectl apply -f k8s/ --dry-run=client
+
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
+
+artifacts:
+  files:
+    - '**/*'
