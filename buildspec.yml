@@ -1,5 +1,13 @@
 version: 0.2
 
+env:
+  variables:
+    AWS_REGION: ap-south-1
+    IMAGE_REPO_NAME: brain-tasks-app
+    EKS_CLUSTER_NAME: brain-tasks
+  secrets-manager:
+    KUBECONFIG_DATA: "brain-tasks/kubeconfig:config"
+
 phases:
   install:
     runtime-versions:
@@ -11,70 +19,42 @@ phases:
       - sudo ./aws/install || true
 
       - echo Installing kubectl...
-      - curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - K8S_VERSION=$(curl -s https://dl.k8s.io/release/stable.txt)
+      - echo "Using kubectl version: $K8S_VERSION"
+      - curl -LO "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/amd64/kubectl"
       - chmod +x kubectl
       - sudo mv kubectl /usr/local/bin/
 
       - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
 
   pre_build:
     commands:
-      - echo Installing Node.js dependencies...
-      - npm install
+      - echo Setting IMAGE_TAG...
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}
+      - echo IMAGE_TAG=$IMAGE_TAG
 
   build:
     commands:
       - echo Building Docker image...
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG 288206953113.dkr.ecr.ap-south-1.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
 
   post_build:
     commands:
       - echo Pushing Docker image to ECR...
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - docker push $REPOSITORY_URI:latest
+      - docker push 288206953113.dkr.ecr.ap-south-1.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
 
-      - echo Setting up kubeconfig for EKS...
+      - echo Setting up kubeconfig from Secrets Manager...
       - mkdir -p ~/.kube
-      - |
-        cat <<EOF > ~/.kube/config
-        apiVersion: v1
-        clusters:
-        - cluster:
-            server: ${EKS_CLUSTER_ENDPOINT}
-            certificate-authority-data: ${EKS_CLUSTER_CA}
-          name: ${EKS_CLUSTER_NAME}
-        contexts:
-        - context:
-            cluster: ${EKS_CLUSTER_NAME}
-            user: aws
-          name: ${EKS_CLUSTER_NAME}
-        current-context: ${EKS_CLUSTER_NAME}
-        kind: Config
-        preferences: {}
-        users:
-        - name: aws
-          user:
-            exec:
-              apiVersion: client.authentication.k8s.io/v1beta1
-              command: aws
-              args:
-                - "eks"
-                - "get-token"
-                - "--region"
-                - "ap-south-1"
-                - "--cluster-name"
-                - "${EKS_CLUSTER_NAME}"
-        EOF
+      - echo "$KUBECONFIG_DATA" > ~/.kube/config
 
-      - echo Validating Kubernetes files...
+      - echo Validating Kubernetes manifests...
       - kubectl apply --dry-run=client -f k8s/
 
-      - echo Deploying to EKS...
+      - echo Applying manifests to EKS...
       - kubectl apply -f k8s/
 
 artifacts:
   files:
     - '**/*'
-
