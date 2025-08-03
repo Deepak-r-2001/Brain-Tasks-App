@@ -2,46 +2,78 @@ version: 0.2
 
 env:
   variables:
-    IMAGE_TAG: "latest"
-    ECR_REPO_NAME: "brain-tasks-app"
-    AWS_REGION: "ap-south-1"
-    ACCOUNT_ID: "288206953113"
+    AWS_REGION: ap-south-1
+  parameter-store:
+    REPOSITORY_URI: "/brain-tasks/repo-uri"
+    IMAGE_TAG: "/brain-tasks/image-tag"
+    EKS_CLUSTER_NAME: "/brain-tasks/eks-cluster-name"
+    EKS_CLUSTER_ENDPOINT: "/brain-tasks/eks-cluster-endpoint"
+    EKS_CLUSTER_CA: "/brain-tasks/eks-cluster-ca"
 
 phases:
   install:
     runtime-versions:
-      docker: 20
+      nodejs: 18
     commands:
-      - echo "Installing kubectl..."
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      - chmod +x kubectl
-      - mv kubectl /usr/local/bin/kubectl
-      - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
 
   pre_build:
     commands:
-      - echo "Generating kubeconfig from EKS..."
-      - aws eks update-kubeconfig --region $AWS_REGION --name brain-tasks-cluster
-      - echo "Setting up ECR repository..."
-      - aws ecr describe-repositories --repository-names $ECR_REPO_NAME || aws ecr create-repository --repository-name $ECR_REPO_NAME
-      - REPO_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}"
-      - echo "Building Docker image..."
-      - docker build -t $ECR_REPO_NAME .
-      - docker tag $ECR_REPO_NAME:latest $REPO_URI:$IMAGE_TAG
+      - echo Installing dependencies...
+      - npm install
 
   build:
     commands:
-      - echo "Pushing Docker image to ECR..."
-      - docker push $REPO_URI:$IMAGE_TAG
+      - echo Building Docker image...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
 
   post_build:
     commands:
-      - echo "Deploying to EKS..."
-      - kubectl apply --dry-run=client -f k8s/   # optional check
-      - kubectl apply -f k8s/deployment.yaml
-      - kubectl apply -f k8s/service.yaml
-      - echo "Deployment complete."
+      - echo Pushing Docker image to ECR...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+
+      - echo Setting up kubeconfig for EKS...
+      - mkdir -p ~/.kube
+      - |
+        cat <<EOF > ~/.kube/config
+        apiVersion: v1
+        clusters:
+        - cluster:
+            server: ${EKS_CLUSTER_ENDPOINT}
+            certificate-authority-data: ${EKS_CLUSTER_CA}
+          name: ${EKS_CLUSTER_NAME}
+        contexts:
+        - context:
+            cluster: ${EKS_CLUSTER_NAME}
+            user: aws
+          name: ${EKS_CLUSTER_NAME}
+        current-context: ${EKS_CLUSTER_NAME}
+        kind: Config
+        preferences: {}
+        users:
+        - name: aws
+          user:
+            exec:
+              apiVersion: client.authentication.k8s.io/v1beta1
+              command: aws
+              args:
+                - "eks"
+                - "get-token"
+                - "--region"
+                - "${AWS_REGION}"
+                - "--cluster-name"
+                - "${EKS_CLUSTER_NAME}"
+        EOF
+
+      - echo Validating Kubernetes manifests...
+      - kubectl apply --dry-run=client -f k8s/
+
+      - echo Deploying to EKS...
+      - kubectl apply -f k8s/
 
 artifacts:
   files:
