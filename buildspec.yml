@@ -69,7 +69,6 @@ phases:
                 - "${EKS_CLUSTER_NAME}"
         EOF
 
-      - echo Validating Kubernetes manifests...
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
 
