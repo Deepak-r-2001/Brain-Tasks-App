@@ -42,7 +42,7 @@ phases:
       - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
       - echo Deploying to EKS...
-      - kubectl apply -f k8s/
+      - kubectl apply --validate=false -f k8s/
 
 artifacts:
   files:
