@@ -7,8 +7,6 @@ env:
     REPOSITORY_URI: "/brain-tasks/repo-uri"
     IMAGE_TAG: "/brain-tasks/image-tag"
     EKS_CLUSTER_NAME: "/brain-tasks/eks-cluster-name"
-    EKS_CLUSTER_ENDPOINT: "/brain-tasks/eks-cluster-endpoint"
-    EKS_CLUSTER_CA: "/brain-tasks/eks-cluster-ca"
 
 phases:
   install:
@@ -18,6 +16,10 @@ phases:
       - echo Logging in to Amazon ECR...
       - aws --version
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - echo Installing kubectl...
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x kubectl
+      - mv kubectl /usr/local/bin/kubectl
 
   pre_build:
     commands:
@@ -36,42 +38,11 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - docker push $REPOSITORY_URI:latest
 
-      - echo Setting up kubeconfig for EKS...
-      - mkdir -p ~/.kube
-      - |
-        cat <<EOF > ~/.kube/config
-        apiVersion: v1
-        clusters:
-        - cluster:
-            server: ${EKS_CLUSTER_ENDPOINT}
-            certificate-authority-data: ${EKS_CLUSTER_CA}
-          name: ${EKS_CLUSTER_NAME}
-        contexts:
-        - context:
-            cluster: ${EKS_CLUSTER_NAME}
-            user: aws
-          name: ${EKS_CLUSTER_NAME}
-        current-context: ${EKS_CLUSTER_NAME}
-        kind: Config
-        preferences: {}
-        users:
-        - name: aws
-          user:
-            exec:
-              apiVersion: client.authentication.k8s.io/v1beta1
-              command: aws
-              args:
-                - "eks"
-                - "get-token"
-                - "--region"
-                - "${AWS_REGION}"
-                - "--cluster-name"
-                - "${EKS_CLUSTER_NAME}"
-        EOF
+      - echo Setting up kubeconfig using aws eks update-kubeconfig...
+      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
       - echo Deploying to EKS...
-      - kubectl apply -f k8s/deployment.yaml
-      - kubectl apply -f k8s/service.yaml
+      - kubectl apply -f k8s/
 
 artifacts:
   files:
