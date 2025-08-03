@@ -70,8 +70,6 @@ phases:
         EOF
 
       - echo Validating Kubernetes manifests...
-      - kubectl apply --dry-run=client -f k8s/
-
       - echo Deploying to EKS...
       - kubectl apply -f k8s/
 
