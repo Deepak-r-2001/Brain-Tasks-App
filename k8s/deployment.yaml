@@ -2,6 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: brain-tasks-deployment
+<<<<<<< HEAD
+=======
+  labels:
+    app: brain-tasks
+>>>>>>> 1fd938c (Added Dockerfile, Kubernetes YAMLs, buildspec, appspec)
 spec:
   replicas: 2
   selector:
@@ -14,6 +19,10 @@ spec:
     spec:
       containers:
       - name: brain-tasks
+<<<<<<< HEAD
         image: 288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app:latest
+=======
+        image: deepwhoo/brain-tasks-app:latest
+>>>>>>> 1fd938c (Added Dockerfile, Kubernetes YAMLs, buildspec, appspec)
         ports:
         - containerPort: 80

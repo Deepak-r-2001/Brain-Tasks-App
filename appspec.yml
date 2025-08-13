@@ -1,0 +1,8 @@
+version: 0.0
+Resources:
+  - myK8sDeployment:
+      Type: AWS::EKS::Deployment
+      Properties:
+        Name: brain-tasks-deployment
+        Namespace: brain-tasks
+        ClusterName: brain-tasks-cluster

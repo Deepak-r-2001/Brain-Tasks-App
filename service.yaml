@@ -5,8 +5,16 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
+<<<<<<< HEAD
     app: brain-tasks-app
   ports:
     - protocol: TCP
       port: 80
       targetPort: 3000
+=======
+    app: brain-tasks
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+>>>>>>> 1fd938c (Added Dockerfile, Kubernetes YAMLs, buildspec, appspec)
