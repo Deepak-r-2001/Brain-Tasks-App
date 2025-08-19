@@ -1,72 +1,23 @@
 version: 0.2
 
-<<<<<<< HEAD
 env:
   variables:
-    AWS_REGION: ap-south-1
-  parameter-store:
-    REPOSITORY_URI: "/brain-tasks/repo-uri"
-    IMAGE_TAG: "/brain-tasks/image-tag"
-    EKS_CLUSTER_NAME: "/brain-tasks/eks-cluster-name"
+    ACCOUNT_ID: 288206953113
+    REGION: ap-south-1
+    REPO_NAME: brain-tasks-app
+    REPO_URI: 288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
 
 phases:
-  install:
-    runtime-versions:
-      nodejs: 18
-    commands:
-      - echo Logging in to Amazon ECR...
-      - aws --version
-      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
-      - echo Installing kubectl...
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      - chmod +x kubectl
-      - mv kubectl /usr/local/bin/kubectl
-
   pre_build:
     commands:
-      - echo Installing dependencies...
-      - npm install
-
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
   build:
     commands:
       - echo Building Docker image...
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
-
+      - docker build -t brain-tasks-app:latest .
+      - docker tag brain-tasks-app:latest $REPO_URI:latest
   post_build:
     commands:
       - echo Pushing Docker image to ECR...
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - docker push $REPOSITORY_URI:latest
-
-      - echo Setting up kubeconfig using aws eks update-kubeconfig...
-      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
-
-      - echo Deploying to EKS...
-      - kubectl apply --validate=false -f k8s/
-
-artifacts:
-  files:
-    - '**/*'
-=======
-phases:
-  pre_build:
-    commands:
-      - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
-      - REPO_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-repo
-      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
-      - IMAGE_TAG=${COMMIT_HASH:=latest}
-  build:
-    commands:
-      - echo Building Docker image...
-      - docker build -t $REPO_URI:$IMAGE_TAG .
-      - docker push $REPO_URI:$IMAGE_TAG
-  post_build:
-    commands:
-      - echo Updating Kubernetes deployment...
-      - aws eks update-kubeconfig --region ap-south-1 --name brain-tasks-cluster
-      - kubectl set image deployment/brain-tasks-deployment brain-tasks=$REPO_URI:$IMAGE_TAG -n brain-tasks
-artifacts:
-  files: '**/*'
->>>>>>> 1fd938c (Added Dockerfile, Kubernetes YAMLs, buildspec, appspec)
+      - docker push $REPO_URI:latest
