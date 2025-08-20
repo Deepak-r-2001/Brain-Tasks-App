@@ -1,39 +1,25 @@
 version: 0.2
 
-env:
-  variables:
-    CLUSTER_NAME: brain-tasks-cluster
-    AWS_REGION: ap-south-1
-    REPOSITORY_URI: 288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
-    DEPLOYMENT_NAME: brain-tasks-deployment
-    CONTAINER_NAME: brain-tasks-app
-
 phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
       - aws --version
-      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 288206953113.dkr.ecr.ap-south-1.amazonaws.com
+      - REPOSITORY_URI=288206953113.dkr.ecr.ap-south-1.amazonaws.com/brain-tasks-app
       - IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
-      - echo Updating kubeconfig for EKS cluster...
-      - aws eks update-kubeconfig --name $CLUSTER_NAME --region $AWS_REGION
-
   build:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
       - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-
   post_build:
     commands:
       - echo Build completed on `date`
       - echo Pushing the Docker image...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - echo Updating Kubernetes deployment...
-      - kubectl set image deployment/$DEPLOYMENT_NAME $CONTAINER_NAME=$REPOSITORY_URI:$IMAGE_TAG
-      - echo Verifying deployment status...
-      - kubectl rollout status deployment/$DEPLOYMENT_NAME
+      - echo Writing image definitions file...
+      - printf '[{"name":"brain-tasks-app","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
-  files:
-    - imagedefinitions.json
+  files: imagedefinitions.json
